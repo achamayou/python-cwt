@@ -4,8 +4,6 @@ import pytest
 
 from cwt import COSE, COSEAlgs, COSEHeaders, COSEKey, Recipient, Signer
 
-import cwt.const
-
 class TestCOSESample:
     """
     Tests for samples on COSE Usage Examples.
@@ -780,10 +778,7 @@ class TestCOSESample:
                 "d": "V8kgd2ZBRuh2dgyVINBUqpPDr7BOMGcF22CQMIUHtNM",
             }
         )
-        protected = {COSEHeaders.KID: b"01", COSEHeaders.ALG: COSEAlgs.ES256, "content type": "application/cwt", "app.msg.type": "type"}
-
-        # Define custom application header
-        cwt.const.COSE_HEADER_PARAMETERS["app.msg.type"] = "app.msg.type"
+        protected = {COSEHeaders.KID: b"01", COSEHeaders.ALG: COSEAlgs.ES256, "content type": "application/cwt"}
 
         ctx = COSE.new(alg_auto_inclusion=True)
         encoded4 = ctx.encode_and_sign(b"Hello world!", cose_key, protected=protected)
@@ -792,4 +787,17 @@ class TestCOSESample:
 
         assert phdr[COSEHeaders.ALG] == COSEAlgs.ES256
         assert phdr["content type"] == "application/cwt"
-        assert phdr["app.msg.type"] == "type"
+
+        # Different order than 781, but surely equivalent?
+        protected = {"content type": "application/cwt", COSEHeaders.KID: b"01", COSEHeaders.ALG: COSEAlgs.ES256}
+
+        with pytest.raises(ValueError) as err:
+            # Raises ValueError: Unsupported or unknown COSE header parameter: 4.
+            # Very surprising!
+            encoded5 = ctx.encode_and_sign(b"Hello world!", cose_key, protected=protected)
+
+            phdr, _, payload = recipient.decode_with_headers(encoded5, pub_key)
+            assert payload == b"Hello world!"
+
+            assert phdr[COSEHeaders.ALG] == COSEAlgs.ES256
+            assert phdr["content type"] == "application/cwt"
