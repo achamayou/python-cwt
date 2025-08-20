@@ -4,6 +4,7 @@ import pytest
 
 from cwt import COSE, COSEAlgs, COSEHeaders, COSEKey, Recipient, Signer
 
+import cwt.const
 
 class TestCOSESample:
     """
@@ -768,3 +769,27 @@ class TestCOSESample:
         )
         encoded3 = sender.encode_and_sign(b"Hello world!", signers=[signer])
         assert b"Hello world!" == recipient.decode(encoded3, pub_key)
+
+        cose_key=COSEKey.from_jwk(
+            {
+                "kty": "EC",
+                "kid": "01",
+                "crv": "P-256",
+                "x": "usWxHK2PmfnHKwXPS54m0kTcGJ90UiglWiGahtagnv8",
+                "y": "IBOL-C3BttVivg-lSreASjpkttcsz-1rb7btKLv8EX4",
+                "d": "V8kgd2ZBRuh2dgyVINBUqpPDr7BOMGcF22CQMIUHtNM",
+            }
+        )
+        protected = {COSEHeaders.KID: b"01", COSEHeaders.ALG: COSEAlgs.ES256, "content type": "application/cwt", "app.msg.type": "type"}
+
+        # Define custom application header
+        cwt.const.COSE_HEADER_PARAMETERS["app.msg.type"] = "app.msg.type"
+
+        ctx = COSE.new(alg_auto_inclusion=True)
+        encoded4 = ctx.encode_and_sign(b"Hello world!", cose_key, protected=protected)
+        phdr, _, payload = recipient.decode_with_headers(encoded4, pub_key)
+        assert payload == b"Hello world!"
+
+        assert phdr[COSEHeaders.ALG] == COSEAlgs.ES256
+        assert phdr["content type"] == "application/cwt"
+        assert phdr["app.msg.type"] == "type"
